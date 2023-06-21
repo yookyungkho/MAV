@@ -1,0 +1,15 @@
+augmentation_args : 
+  strong_aug_list : ["worddelete", "wordswap", "worddelete*wordswap"]
+  strong_aug : None
+  strong_aug_mag : 0.2
+  seed : 42
+  word_embedding_dir : 
+
+dir_args : 
+  data_dir : "../data/few-shot/"
+  data_name : "trec"
+
+tokenize_args : 
+  tokenizer_name : "roberta-base"
+  template : "*cls**mask*:*+sent_0**sep+*"
+  max_length : 256
