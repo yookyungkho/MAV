@@ -1,7 +1,5 @@
 # Mapping-free Automatic Verbalizer (MAV)
-
-[@yookyungkho](https://github.com/yookyungkho)
-
+(영어로 번역 예정)
 
 ## Overview
 
