@@ -136,6 +136,12 @@ python tools/generate_fewshot_data.py --k 16 --mu 4 --task trec --data_dir data/
 Augmentation 실험을 위해 Augmentation이 진행된 데이터를 미리 저장합니다.
 Augmentation은 `tools/augmentation_{data_name}.yaml`을 통해 정의되며 그 결과는 `data/few-shot/{data_name}/{k}_{mu}_{seed}`경로에 npy 파일로 저장됩니다. 
 Augmentation 수행을 위해서는 아래와 같이 실행하게 됩니다. 
+사전에 저장할 수 있는 Augmentation Pool 및 실제 적용 key는 아래와 같습니다. 
+
+- Word Swap ([Wei et al., 2019](https://github.com/jasonwei20/eda_nlp)) : "wordswap"
+- Word Delete ([Wei et al., 2019](https://github.com/jasonwei20/eda_nlp)) : "worddelete"
+- CBERT ([Yi et al., 2021](https://arxiv.org/abs/2103.08933)): "bertaug"
+- Back Translation ([Wie et al., 2020](https://github.com/google-research/uda)): "backtranslation"
 
 ```bash
 python tools/generate_augmented_data.py --config_dir tools/augmentation_trec.yaml

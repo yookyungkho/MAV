@@ -1,14 +1,16 @@
 import numpy as np
 import pandas as pd
 import random
+from tqdm import tqdm 
 import torch
+import types 
+from torch.utils import data as t_data
 import os
 from omegaconf import OmegaConf
 import argparse
+import warnings
 
 import nlpaug.augmenter.word as naw
-import nlpaug.augmenter.char as nac
-import nlpaug.model.word_stats as nmw
 
 import transformers
 from transformers import AutoTokenizer
@@ -47,23 +49,9 @@ class RandomAugMentation():
         ## Word Level
         self.random_word_swap = naw.RandomWordAug(action='swap')
         self.random_word_delete = naw.RandomWordAug(action='delete')
-        self.synonym_word_substitute = naw.SynonymAug()
-
-        ## Static Word Embedding Level
-        # self.embed_word_substitute = naw.WordEmbsAug(model_type='word2vec', model_path=self.augmentation_args.word_embedding_dir, action="substitute", top_k=10)
-        # self.embed_word_insert = naw.WordEmbsAug(model_type='word2vec', model_path=self.augmentation_args.word_embedding_dir, action="insert", top_k=10)
-
-        # ## TFIDF Word Level
-        # self.tfidf_word_substitute = naw.TfIdfAug(action="substitute", model_path=self.augmentation_args.data_dir, tokenizer=self.data_args.tokenizer.tokenize, reverse_tokenizer=self.data_args.tokenizer.convert_tokens_to_string, top_k=10)
-        # self.tfidf_word_insert = naw.TfIdfAug(action="insert", model_path=self.augmentation_args.data_dir, tokenizer=self.data_args.tokenizer.tokenize, reverse_tokenizer=self.data_args.tokenizer.convert_tokens_to_string, top_k=10)
-
-        # ## Text Level
-        # self.ocr = nac.OcrAug(aug_char_p = 0.2)
-        # self.keyboard = nac.KeyboardAug(aug_char_p = 0.2)
-        # self.random_char_insert = nac.RandomCharAug(action="insert", aug_char_p = 0.2)
-        # self.random_char_substitute = nac.RandomCharAug(action="substitute", aug_char_p = 0.2)
-        # self.random_char_swap = nac.RandomCharAug(action="swap", aug_char_p = 0.2)
-        # self.random_char_delete = nac.RandomCharAug(action="delete", aug_char_p = 0.2)
+        self.bertaug = naw.ContextualWordEmbsAug(model_path='roberta-base', device='cuda', action="substitute", batch_size=32)
+        self.backtranslation = naw.BackTranslationAug(from_model_name='facebook/wmt19-en-de', to_model_name='facebook/wmt19-de-en', device='cuda', batch_size=32, max_length=256)
+        self.backtranslation.model.translate_one_step_batched = types.MethodType(translate_one_step_batched, self.backtranslation.model)
         
         ## Tokenized Level
         class identity_aug() :
@@ -77,18 +65,8 @@ class RandomAugMentation():
             "wordswap"          : self.random_word_swap,
             "worddelete"        : self.random_word_delete,
             "wordsubstitute"    : self.synonym_word_substitute,
-            # "embedsubstitute"   : self.embed_word_substitute,
-            # "embedinsert"       : self.embed_word_insert,
-            # "tfidfwordsubstitute"   : self.tfidf_word_substitute,
-            # "tfidfwordinsert"   : self.tfidf_word_insert,
-            # "ocr"               : self.ocr,
-            # "keyboard"          : self.keyboard,
-            # "charinsert"        : self.random_char_insert,
-            # "charsubstitute"    : self.random_char_substitute,
-            # "charswap"          : self.random_char_swap,
-            # "chardelete"        : self.random_char_delete,
-            # "mask"              : self.mask,
-            # "dropout"           : self.dropout
+            "bertaug"           : self.bertaug,
+            "backtranslation"   : self.backtranslation,
         }
         return aug_func_dict
 
@@ -103,14 +81,52 @@ class RandomAugMentation():
         """
         assert aug_name in self.aug_func_dict.keys(), f"aug_name should be in {self.aug_func_dict.keys()}"
 
-        if aug_name in {"wordswap", "worddelete", "wordsubstitute", "embedsubstitute", "embedinsert", "tfidfwordsubstitute", "tfidfwordinsert"}:
+        if aug_name in {"wordswap", "worddelete", "wordsubstitute", "bertaug"} :
             aug_func.aug_p = aug_mag
-        elif aug_name in {"ocr", "keyboard", "charinsert", "charsubstitute", "charswap", "chardelete"}:
-            aug_func.aug_char_p = aug_mag
-
-    def augment(self, text) :
+        elif aug_name in {"backtranslation"} :
+            pass
+        else : 
+            raise NotImplementedError
+ 
+    def augment(self, sentences) :
         aug_func = np.random.choice(self.aug_func_list)
-        return aug_func.augment(text)
+        return aug_func.augment(sentences)
+
+def translate_one_step_batched(self, data, tokenizer, model) : # methods for replacing the original translate_one_step_batched method in backtranslation. transformers version issue
+    tokenized_texts = tokenizer(data, padding=True, truncation=True, return_tensors='pt')
+    tokenized_dataset = t_data.TensorDataset(*(tokenized_texts.values()))        
+    tokenized_dataloader = t_data.DataLoader(
+        tokenized_dataset,
+        batch_size=self.batch_size,
+        shuffle=False,
+        num_workers=1
+    )
+
+    all_translated_ids = []
+    with torch.no_grad():
+        for batch in tokenized_dataloader:
+            batch = tuple(t.to(self.device) for t in batch)
+            input_ids = batch[0]
+            attention_mask = batch[2]
+            translated_ids_batch = model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_length=self.max_length
+            )
+
+            all_translated_ids.append(
+                translated_ids_batch.detach().cpu().numpy()
+            )
+
+    all_translated_texts = []
+    for translated_ids_batch in all_translated_ids:
+        translated_texts = tokenizer.batch_decode(
+            translated_ids_batch,
+            skip_special_tokens=True
+        )
+        all_translated_texts.extend(translated_texts)
+
+    return all_translated_texts
 
 
 def tokenize_multipart_input(
@@ -250,9 +266,13 @@ def tokenize_multipart_input(
         token_type_ids = token_type_ids[:max_length]
 
     # Find mask token
-    mask_pos = [input_ids.index(tokenizer.mask_token_id)]
-    # Make sure that the masked position is inside the max_length
-    assert mask_pos[0] < max_length
+    try : 
+        mask_pos = [input_ids.index(tokenizer.mask_token_id)]
+        # Make sure that the masked position is inside the max_length
+        assert mask_pos[0] < max_length
+    except :
+        mask_pos = None
+        warnings.warn("No mask token in the template. This may not be intended.")
 
     result = {'input_ids': input_ids, 'attention_mask': attention_mask}
     if 'BERT' in type(tokenizer).__name__:
@@ -274,8 +294,39 @@ def load_data(seed_data_dir) :
         return list(zip(data_first, data_second))
 
 def augment_data(data_args, data) :
+    print(">>> The length of the original data is {}".format(len(data)))
+    print(">>> Example : {}".format(data[0]))
     augmenter = RandomAugMentation(data_args)
-    return [augmenter.augment(text) for text in data]
+
+
+
+    if sum([aug_name in data_args.strong_aug_list for aug_name in {"wordswap", "worddelete", "wordsubstitute"}]) == 1 : # if naive augmentation applied
+        if not isinstance(data[0], str) : # if data is list of sentences
+            data_first = [sent[0] for sent in data]
+            data_second = [sent[1] for sent in data]
+            result_first = [augmenter.augment(sent) for sent in tqdm(data_first)]
+            result_second = [augmenter.augment(sent) for sent in tqdm(data_second)]
+            result = [[first[0], second[0]] for first, second in zip(result_first, result_second)]
+        else :
+            result = [augmenter.augment(sent) for sent in data]
+        print(">>> The length of the augmented data is {}".format(len(result)))
+        print(">>> Example : {}".format(result[0]))
+        return result
+
+    else : # if model-based augmentation is applied for batch
+        if not isinstance(data[0], str) : # if data is list of sentences
+            data_first = [sent[0] for sent in data]
+            data_second = [sent[1] for sent in data]
+            result_first = augmenter.augment(data_first)
+            result_second = augmenter.augment(data_second)
+            result = [[first, second] for first, second in zip(result_first, result_second)]
+        else :
+            result = augmenter.augment(data)
+            print(f">>> The length of the augmented data is {len(result)}") 
+            print(f">>> Example : {result[0]}")
+            result = [[text] for text in result]
+        return result
+    
 
 def tokenize_data(tokenize_args, data) :
     tokenizer = AutoTokenizer.from_pretrained(tokenize_args.tokenizer_name)
@@ -286,14 +337,19 @@ def tokenize_data(tokenize_args, data) :
         template        = tokenize_args.template,
             ) for sent in data]
 
-def save_data(augmentation_name, save_dir, tokenized_data) :
-    np.save(os.path.join(save_dir, f"unlabeled_{augmentation_name}"), tokenized_data)
+def save_data(augmentation_name, save_dir, tokenized_data, dir_args) :
+    if dir_args.additinal_save_name :
+        save_dir = os.path.join(save_dir, f"unlabeled_{augmentation_name}_{dir_args.additinal_save_name}")
+    else : 
+        save_dir = os.path.join(save_dir, f"unlabeled_{augmentation_name}")
+    np.save(save_dir, tokenized_data)
+    return save_dir
 
 def main() :
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_dir', type=str, default='augmentation_trec')
+    parser.add_argument('--config_dir', type=str, default='augmentation_goemotions.yaml')
     args, _ = parser.parse_known_args()
-    total_args = OmegaConf.load(args.config_dir)
+    total_args = OmegaConf.load(f'./{args.config_dir}')
     data_dir_list = os.listdir(os.path.join(total_args.dir_args.data_dir, total_args.dir_args.data_name))
     for seed in [13, 21, 42, 87, 100] : 
         print(f"\n >>>>>>>> Start Augmentation & Tokenization for seed : {seed} ")
@@ -306,7 +362,7 @@ def main() :
             data = load_data(seed_data_dir)
             augmented_data = augment_data(total_args.augmentation_args, data)
             tokenized_data = tokenize_data(total_args.tokenize_args, augmented_data)
-            save_data(strong_aug_name, seed_data_dir, tokenized_data)
-            print(f">>> Augmentation & Tokenization done : {seed}/{strong_aug_name}")
+            save_dir = save_data(strong_aug_name, seed_data_dir, tokenized_data, total_args.dir_args)
+            print(f">>> Augmentation & Tokenization done : {save_dir}")
 if __name__ == "__main__" :
     main()
