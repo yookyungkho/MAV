@@ -30,6 +30,9 @@ MAV
 │           ├── 12-4-21
 │           ├── 12-4-42
 │           └── 12-4-87
+│   └── original
+│       └── trec
+│           └── preprocess.py
 ├── src # 코드 디렉토리
 │   ├── augmentation
 │   │   ├── aug_utils.py
@@ -110,7 +113,36 @@ mav-ssl-singleaug_mask-trec
 ```
 
 ---
+## How to Get Few-shot Data
+### 0. Download & Preprocessing
+실험에 사용된 다섯가지의 데이터는 아래 출처에서 다운로드하여, 동일한 형태로 전처리를 수행하였습니다. 
+- Go Emotions, TREC50, Yahoo Answers : HuggingFace datasets 이용
+- TREC : LM-BFF 논문 공식 레포지토리 데이터 사용
+- AG News : [Kaggle](https://www.kaggle.com/datasets/amananandrai/ag-news-classification-dataset?resource=download&select=train.csv) 
 
+각 데이터의 원본 파일은 `data/original/{data_name}` 경로에 저장됩니다.  
+또한, `data/original/{data_name}/preprocess.py` 파일을 실행하여 동일한 형태로 전처리됩니다. 
+
+### 1. Sampling Few-shot Data
+전처리된 데이터를 이용하여 k/mu/seed에 맞추어 샘플링이 진행됩니다. 
+해당 샘플링은 `tools/generate_gewshot_data.py`을 통해 수행되며 아래와 같이 argument를 설정합니다.  
+그 결과 `data/few-shot/{data_name}/{k}-{mu}-{seed}` 경로로 저장됩니다. 
+
+```bash 
+python tools/generate_fewshot_data.py --k 16 --mu 4 --task trec --data_dir data/original --output_dir data/few-shot
+```
+
+### 2. Preprocessing for Augmentation
+Augmentation 실험을 위해 Augmentation이 진행된 데이터를 미리 저장합니다.
+Augmentation은 `tools/augmentation_{data_name}.yaml`을 통해 정의되며 그 결과는 `data/few-shot/{data_name}/{k}_{mu}_{seed}`경로에 npy 파일로 저장됩니다. 
+Augmentation 수행을 위해서는 아래와 같이 실행하게 됩니다. 
+
+```bash
+python tools/generate_augmented_data.py --config_dir tools/augmentation_trec.yaml
+```
+
+
+---
 ## How to train
 
 ```

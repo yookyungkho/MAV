@@ -293,7 +293,7 @@ def main() :
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_dir', type=str, default='augmentation_trec')
     args, _ = parser.parse_known_args()
-    total_args = OmegaConf.load(f'./{args.config_dir}.yaml')
+    total_args = OmegaConf.load(args.config_dir)
     data_dir_list = os.listdir(os.path.join(total_args.dir_args.data_dir, total_args.dir_args.data_name))
     for seed in [13, 21, 42, 87, 100] : 
         print(f"\n >>>>>>>> Start Augmentation & Tokenization for seed : {seed} ")
