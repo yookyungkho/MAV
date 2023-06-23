@@ -439,8 +439,8 @@ def main():
         if training_args.freeze_type == "lmhead":
             for name, child in model.named_children():
                 for param in child.parameters():
-                    if name=='lm_head': # 원하는 layer(lm_head) 이름 지정
-                        param.requires_grad = False # 해당 layer freeze
+                    if name=='lm_head':
+                        param.requires_grad = False
         elif training_args.freeze_type == "model":
             for name, child in model.named_children():
                 for param in child.parameters():

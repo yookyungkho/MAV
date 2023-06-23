@@ -1,28 +1,27 @@
 # Mapping-free Automatic Verbalizer (MAV)
-(영어로 번역 예정)
 
 ## Overview
 
-Boosting Prompt-Based Self-Training With Mapping-Free Automatic Verbalizer for Multi-Class Classification (_TACL under review_) 논문의 소스코드입니다.
+This is the source code of Boosting Prompt-Based Self-Training With Mapping-Free Automatic Verbalizer for Multi-Class Classification (_EMNLP 2023 Submission_).
 
 
 ---
 
-## 전체 구조도
+## Overall Structure
 
 ```
 MAV
-├── docker # 도커 환경 구축을 위한 디렉토리
+├── docker # A directory for building Docker environments
 │   ├── create_container.sh
 │   ├── create_image.sh
 │   ├── Dockerfile
 │   └── requirements.txt
-├── tools # 학습용 데이터 생성 디렉토리
+├── tools # A directory for generating train data
 │   ├── augmentation_trec.yaml
 │   ├── check_dataset.ipynb
 │   ├── generate_augmented_data.py
 │   └── generate_data.py
-├── data # 데이터 디렉토리 (ex. trec 데이터셋)
+├── data # Data directory (e.g. TREC dataset)
 │   └── few-shot
 │       └── trec
 │           ├── 12-4-100
@@ -33,7 +32,7 @@ MAV
 │   └── original
 │       └── trec
 │           └── preprocess.py
-├── src # 코드 디렉토리
+├── src # Code directory
 │   ├── augmentation
 │   │   ├── aug_utils.py
 │   │   ├── functional.py
@@ -44,25 +43,26 @@ MAV
 │   ├── model_utils.py
 │   ├── trainer.py
 │   └── utils.py
-├── script # 학습 및 분석 코드 실행용 스크립트 파일
+├── script # Script files to run training and analytics code
 │   ├── analysis_trec.sh
 │   └── run_trec.sh
-├── run.py # 메인 학습용 코드
-├── calculate_result.py # 5개 시드 결과 종합용 코드
-├── analysis.py # 분석용(shap, tsne) 코드
-└── exp_result # 실험 결과 디렉토리
+├── run.py # Main code
+├── calculate_result.py # Code for aggregating results of 5 seeds
+├── analysis.py # Code for further analysis (SHAP, t-SNE)
+└── exp_result # A directory for saving experimental results
     ├── mav-full_sup-trec # full supervised
     ├── mav-small_sup-trec # small supervised
     └── mav-ssl-singleaug_mask-trec # semi-supervised
 ```
 
-### `data` 디렉토리 세부 구조도
+### Detailed structure of `data` directory
 
-seed 별로 데이터 디렉토리가 생성되며 디렉토리명 형식은 `k-mu-seed`를 따릅니다. 이때, k는 class 별 labeled data 개수를, mu는 labeled와 unlabeled 데이터 간 비율을 의미합니다.
+A data directory is created for each seed and the directory name follows the format `k-mu-seed`. Where k is the number of labeled data per class and mu is the ratio between labeled and unlabeled data.
 
-데이터 디렉토리는 csv 형식의 train, unlabeled, dev, test 데이터와 npy 형식의 augmentation 데이터를 포함합니다.
+The data directory contains train, unlabeled, dev, test data in csv format and augmentation data in npy format.
 
-아래는 13번 seed의 데이터 디렉토리 구조도 예시입니다.
+Below is an example of the data directory structure for seed 13.
+
 
 ```
 12-4-13
@@ -78,9 +78,9 @@ seed 별로 데이터 디렉토리가 생성되며 디렉토리명 형식은 `k-
 ```
 
 
-### `exp_result` 디렉토리 세부 구조도
+### Detailed structure of `exp_result` directory
 
-학습과 추론, 이후 분석까지 모든 결과물은 exp_result 디렉토리에 저장됩니다.
+All output files from training, inference, and further analysis are stored in the exp_result directory.
 
 ```
 mav-ssl-singleaug_mask-trec
@@ -113,30 +113,49 @@ mav-ssl-singleaug_mask-trec
 ```
 
 ---
+## Requirements
+
+```
+cd docker
+
+bash create_image.sh
+bash create_container.sh
+```
+
+Our experimental environment is built on Docker (`pytorch/pytorch:1.7.1-cuda11.0-cudnn8-devel` image). Detailed dependencies are described in `docker/requirements.txt`.
+
+---
+
 ## How to Get Few-shot Data
 ### 0. Download & Preprocessing
-실험에 사용된 다섯가지의 데이터는 아래 출처에서 다운로드하여, 동일한 형태로 전처리를 수행하였습니다. 
-- Go Emotions, TREC50, Yahoo Answers : HuggingFace datasets 이용
-- TREC : LM-BFF 논문 공식 레포지토리 데이터 사용
+
+The five datasets used in the experiment were downloaded from the sources below and preprocessed in the same way.
+ 
+- Go Emotions, TREC50, Yahoo Answers : [HuggingFace datasets](https://huggingface.co/docs/datasets/index)
+
+- TREC : [Official repository of LM-BFF](https://github.com/princeton-nlp/LM-BFF)
+
 - AG News : [Kaggle](https://www.kaggle.com/datasets/amananandrai/ag-news-classification-dataset?resource=download&select=train.csv) 
 
-각 데이터의 원본 파일은 `data/original/{data_name}` 경로에 저장됩니다.  
-또한, `data/original/{data_name}/preprocess.py` 파일을 실행하여 동일한 형태로 전처리됩니다. 
+The source file for each data is stored in the path `data/original/{data_name}`.  
+They are also preprocessed into the same form by running the file `data/original/{data_name}/preprocess.py`.
 
 ### 1. Sampling Few-shot Data
-전처리된 데이터를 이용하여 k/mu/seed에 맞추어 샘플링이 진행됩니다. 
-해당 샘플링은 `tools/generate_gewshot_data.py`을 통해 수행되며 아래와 같이 argument를 설정합니다.  
-그 결과 `data/few-shot/{data_name}/{k}-{mu}-{seed}` 경로로 저장됩니다. 
+
+With the preprocessed data, sampling is performed to match `k/mu/seed`. 
+This sampling is done via `tools/generate_gewshot_data.py`, setting the arguments as shown below.  
+The result is stored in the path `data/few-shot/{data_name}/{k}-{mu}-{seed}`.
+
 
 ```bash 
 python tools/generate_fewshot_data.py --k 16 --mu 4 --task trec --data_dir data/original --output_dir data/few-shot
 ```
 
 ### 2. Preprocessing for Augmentation
-Augmentation 실험을 위해 Augmentation이 진행된 데이터를 미리 저장합니다.
-Augmentation은 `tools/augmentation_{data_name}.yaml`을 통해 정의되며 그 결과는 `data/few-shot/{data_name}/{k}_{mu}_{seed}`경로에 npy 파일로 저장됩니다. 
-Augmentation 수행을 위해서는 아래와 같이 실행하게 됩니다. 
-사전에 저장할 수 있는 Augmentation Pool 및 실제 적용 key는 아래와 같습니다. 
+Store augmented data for augmentation experiments.
+Augmentation is defined via `tools/augmentation_{data_name}.yaml` and the results are stored as npy files in the path `data/few-shot/{data_name}/{k}_{mu}_{seed}`. 
+To perform the augmentation, refer to the bash code below.
+The augmentation pool that can be saved in advance and the actual application key are as follows:
 
 - Word Swap ([Wei et al., 2019](https://github.com/jasonwei20/eda_nlp)) : "wordswap"
 - Word Delete ([Wei et al., 2019](https://github.com/jasonwei20/eda_nlp)) : "worddelete"
@@ -152,9 +171,9 @@ python tools/generate_augmented_data.py --config_dir tools/augmentation_trec.yam
 ## How to train
 
 ```
-# 학습 및 추론
+# Train, Inference
 bash script/run_trec.sh
 
-# 결과 분석 (SHAP, Tsne)
+# Further analysis (SHAP, t-SNE)
 bash script/analysis_trec.sh
 ```
