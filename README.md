@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is the source code of Boosting Prompt-Based Self-Training With Mapping-Free Automatic Verbalizer for Multi-Class Classification (_EMNLP 2023 Submission_).
+This is the source code of Boosting Prompt-Based Self-Training With Mapping-Free Automatic Verbalizer for Multi-Class Classification (_EMNLP 2023 findings_).
 
 
 ---
