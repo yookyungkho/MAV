@@ -3,7 +3,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers.modeling_roberta import RobertaPreTrainedModel, RobertaModel, RobertaLMHead
+from transformers.modeling_bert import BertPreTrainedModel
+from transformers.modeling_roberta import RobertaModel, RobertaLMHead
 # Check original codes for each module in https://github.com/huggingface/transformers/blob/v3.4.0/src/transformers/modeling_roberta.py
 
 import logging
@@ -14,26 +15,26 @@ from .model_utils import MAV, MaskClassificationHead
 logger = logging.getLogger(__name__)
 
 
-class RobertaForPromptFinetuning(RobertaPreTrainedModel):
+class RobertaForPromptFinetuning(BertPreTrainedModel):
 
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
-        self.return_mask_rep = config.return_mask_rep
-        self.soft_verb = config.soft_verb
 
         self.roberta = RobertaModel(config)
-        if self.soft_verb:
-            self.classifier = MaskClassificationHead(config) # soft_verb(baseline)
-        else:
-            self.lm_head = RobertaLMHead(config)
-            self.mav = MAV(config)
+        self.classifier = MaskClassificationHead(config) # soft_verb(baseline)
+        self.lm_head = RobertaLMHead(config)
         self.init_weights()
 
         # These attributes should be assigned once the model is initialized
         self.model_args = None
         self.data_args = None
         self.label_word_list = None
+
+        self.mav = MAV(config)
+
+        self.return_mask_rep = config.return_mask_rep
+        self.soft_verb = config.soft_verb
 
         # to check whether Word Emb == LM Head decoder
         # print(f"\n >>>>> config.tie_word_embeddings: {config.tie_word_embeddings}")
