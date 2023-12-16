@@ -192,6 +192,12 @@ class DynamicTrainingArguments(TrainingArguments):
         metadata={"help": "Whether to use randaug"}
     )
 
+    # --- autoaug (DND) ---
+    autoaug: bool = field(
+        default=False,
+        metadata={"help": "Whether to use autoaug"}
+    )
+
     # --- For baseline(supervised) ---
     base_mode: str = field(
         default=None,
