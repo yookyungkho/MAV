@@ -1,9 +1,9 @@
 docker run --gpus all \
 	-it \
     -h go60 \
-    -p 628:8888 \
+    -p 8888:8888 \
     --ipc=host \
-    --name textssl \
-	-v /home/go60/projects/:/workspace/codes \
-	textssl_img \
-	bash                           
+    --name mav \
+	-v /home/go60/codes/:/workspace/codes \
+	mav_img \
+	bash           
