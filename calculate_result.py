@@ -10,7 +10,7 @@ def main(args):
     seed_list = [13, 21, 42, 87, 100]
 
     file_name = args.result_dir.split("/")[1]
-    result_file = f"{args.result_dir}/total_result-{file_name}.txt"
+    result_file = f"{args.result_dir}/total_results.txt"
     
 
     accs = []
